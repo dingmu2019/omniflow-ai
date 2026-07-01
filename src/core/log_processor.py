@@ -8,7 +8,16 @@ from pipecat.frames.frames import TranscriptionFrame, TextFrame, Frame
 
 class ConversationLogger(FrameProcessor):
     """全内容留存：旁路拦截器，记录用户转录与 LLM 回复"""
-    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __init__(    def __       def __init__(    def __init__(    dee):
+    def __init__(self, session_id: str = "default"):
+        super().__init__()
+        self.session_id = session_id
+        os.makedirs("logs", exist_ok=True)
+        self.log_file = f"logs/session_{session_id}.jsonl"
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        
+        if isinstance(frame, TranscriptionFrame):
             self._write_log("User", frame.text)
         elif isinstance(frame, TextFrame):
             self._write_log("Agent", frame.text)

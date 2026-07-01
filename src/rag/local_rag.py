@@ -23,9 +23,9 @@ async def search_knowledge(args: dict):
     logger.info(f"LLM 正在检索本地知识库，关键词: {query}")
     
     kb_content = load_knowledge_base()
-    #    #    #    #    #    #    #    #    # ???   #    #    #    #    #  "result": kb_content}
+    return {"result": kb_content}
 
-def register_rag_tool(llm: OpenAILLMService):
+def register_rag_tool(llm):
     """将本地检索函数注册为 OpenAI 工具"""
     llm.register_function(
         "search_knowledge",

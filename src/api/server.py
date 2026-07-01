@@ -74,6 +74,7 @@ async def connect(request: Request):
         body = {}
         
     system_prompt = body.get("prompt", "你是一个全渠道智能客服。你可以调用 search_knowledge 工具查询公司信息。请用简短、专业的中文回答。")
+    voice = body.get("voice", "alloy")
     # 为了避免通过命令行传参时引发特殊字符截断，这里使用 Base64 编码
     prompt_b64 = base64.b64encode(system_prompt.encode('utf-8')).decode('utf-8')
     
@@ -87,9 +88,9 @@ async def connect(request: Request):
             token_data = await r.json()
             token = token_data.get("token")
     
-    # 异步拉起 Pipecat Agent 子进程，并传入 Base64 编码的 Prompt
-    logger.info(f"Spawning Agent for room: {room_url}")
-    subprocess.Popen([".venv/bin/python", "src/agents/realtime_agent.py", room_url, token, prompt_b64])
+    # 异步拉起 Pipecat Agent 子进程，并传入 Base64 编码的 Prompt 和音色
+    logger.info(f"Spawning Agent for room: {room_url} with voice: {voice}")
+    subprocess.Popen([".venv/bin/python", "src/agents/realtime_agent.py", room_url, token, prompt_b64, voice])
     
     return JSONResponse({"room_url": room_url, "token": token})
 

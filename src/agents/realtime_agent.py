@@ -7,21 +7,39 @@ from dotenv import load_dotenv
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.services.openai import OpenAILLMService
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecat.vad.silero import SileroVADAnalyzer
 
 from src.core.log_processor import ConversationLogger
 from src.rag.local_rag import register_rag_tool
 
-from pipecat.frames.frames import TextFrame, UserImageRequestFrame
-from pipecat.messages.mac_os import MacOsFrameSerializer # Using generic import format
+from pipecat.frames.frames import TextFrame, TranscriptionFrame, Frame
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 load_dotenv()
 
-async def main(room_url: str, token: str, prompt_b64: str):
-    logger.info("Initializing WebRTC OmniFlow Agent...")
+class SubtitleProcessor(FrameProcessor):
+    """拦截转录帧并发送给前端展示为电影字幕"""
+    def __init__(self, transport: DailyTransport):
+        super().__init__()
+        self.transport = transport
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        
+        # 只处理发往用户的方向或来自用户的方向
+        if isinstance(frame, TranscriptionFrame):
+            # 将转录结果发送到前端
+            await self.transport.send_app_message({
+                "type": "transcription",
+                "role": "user" if direction == FrameDirection.UPSTREAM else "agent",
+                "text": frame.text
+            }, "*")
+
+async def main(room_url: str, token: str, prompt_b64: str, voice: str = "alloy"):
+    logger.info(f"Initializing WebRTC OmniFlow Agent with voice: {voice}")
     
     import base64
     try:
@@ -46,16 +64,24 @@ async def main(room_url: str, token: str, prompt_b64: str):
         ),
     )
 
-    llm = OpenAILLMService(
+    llm = OpenAIRealtimeLLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL"),
         model="gpt-4o-realtime-preview"
     )
+    # Set the voice
+    try:
+        # In newer pipecat versions, voice is set via session update or param
+        # Here we try to use a method if available, otherwise it defaults.
+        if hasattr(llm, 'set_voice'):
+            llm.set_voice(voice)
+    except Exception as e:
+        logger.warning(f"Could not set voice directly: {e}")
     
     # 挂载 RAG 知识库工具
     register_rag_tool(llm)
 
-    context = OpenAILLMContext(
+    context = LLMContext(
         [{"role": "system", "content": system_prompt}]
     )
     context_aggregator = llm.create_context_aggregator(context)
@@ -63,11 +89,15 @@ async def main(room_url: str, token: str, prompt_b64: str):
     # 实例化全内容留存拦截器 (按 Room ID 隔离日志)
     session_id = room_url.split('/')[-1] if '/' in room_url else "unknown"
     session_logger = ConversationLogger(session_id=session_id)
+    
+    # 字幕处理器
+    subtitle_processor = SubtitleProcessor(transport)
 
-    # 组装 Pipeline: Transport -> RAG/Context -> LLM -> Logger -> Transport
+    # 组装 Pipeline: Transport -> Subtitle -> RAG/Context -> LLM -> Logger -> Transport
     pipeline = Pipeline(
         [
             transport.input(),
+            subtitle_processor,
             context_aggregator.user(),
             llm,
             session_logger, # 旁路记录日志，符合零磁盘占用架构理念
@@ -105,12 +135,12 @@ async def main(room_url: str, token: str, prompt_b64: str):
 if __name__ == "__main__":
     import base64
     if len(sys.argv) < 3:
-        logger.error("Usage: python realtime_agent.py <room_url> <token> [prompt_b64]")
+        logger.error("Usage: python realtime_agent.py <room_url> <token> [prompt_b64] [voice]")
         sys.exit(1)
     
     room_url = sys.argv[1]
     token = sys.argv[2]
-    # 如果没有传入 prompt，给一个默认的 base64
     prompt_b64 = sys.argv[3] if len(sys.argv) > 3 else base64.b64encode("你是一个全渠道智能客服。请用简短、专业的中文回答。".encode('utf-8')).decode('utf-8')
+    voice = sys.argv[4] if len(sys.argv) > 4 else "alloy"
     
-    asyncio.run(main(room_url, token, prompt_b64))
+    asyncio.run(main(room_url, token, prompt_b64, voice))
