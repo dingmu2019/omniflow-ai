@@ -1,42 +1,58 @@
-# OmniFlow 行业顶级体验升级计划 (对标 ChatGPT/微信)
+# OmniFlow AI - UI/UX 重构与功能增强计划
 
-## 1. 摘要
-将 OmniFlow AI 升级至行业顶级体验水准，重点解决移动端响应式适配、沉浸式电影级实时字幕、大模型音色切换以及极简零依赖本地知识库的修复与挂载，同时彻底修复底层由于依赖变动和截断产生的致命 Bug。
+## 1. 现状分析
+当前项目已实现了基于 `pipecat-ai` 和 WebRTC (Daily) 的隐式连接与音视频通话，并采用了极简的乔布斯设计哲学。
+目前存在以下待优化项：
+1. **图标使用**：大量使用了 Emoji 作为图标（如 📞、📹 等），在不同操作系统和设备上渲染不一致，缺乏专业感。
+2. **语音消息缺失**：目前支持打字和直接进入实时通话，缺乏类似微信的“按住说话 (Push to Talk)”轻量级语音交互方式。
+3. **呼叫体验不完整**：目前点击通话会直接进入通话界面，缺少“正在呼叫”的过渡状态；且没有“模拟来电 (Incoming Call)”的接听/挂断演示，无法完整呈现双向呼叫能力。
+4. **UI/UX 细节问题**：移动端长按可能触发系统菜单，缺乏 iOS 安全区适配，交互反馈可进一步打磨。
 
-## 2. 当前状态分析
-- **UI 界面**: 目前是纯桌面端分屏设计，在手机端无法正常浏览；缺少沉浸式的字幕反馈机制。
-- **配置项**: 设置中仅支持系统提示词 (System Prompt)，缺少业界标配的音色选择。
-- **底层 Bug**:
-  - `realtime_agent.py` 存在过时/幻觉的 Pipecat 模块导入路径（如 `OpenAILLMContext` 不存在）。
-  - `log_processor.py` 存在文件写入截断导致的语法错误（`def __init__` 重复）。
-  - `local_rag.py` 存在返回值截断导致的语法错误。
+## 2. 拟议更改 (Proposed Changes)
 
-## 3. 具体修改方案
+### 2.1 将所有 Emoji 替换为 SVG 图标
+**目标文件**：`src/static/index.html`
+**修改内容**：
+- 移除所有现有的 Emoji（⋯, ⊕, 🖼️, 📞, 📹, 🎤, 🔇, 📷, ⤓）。
+- 引入专业、极简的 inline SVG 图标（如使用 Feather Icons 或 Heroicons 风格）。
+- 图标颜色通过 CSS 变量 `currentColor` 或 `var(--icon-color)` 适配深浅色主题。
 
-### 3.1 前端 UI 与体验升级 (`src/static/index.html`)
-- **响应式布局 (Mobile-First)**: 引入 `@media (max-width: 768px)`，在移动端将左侧视觉区和右侧聊天区改为上下堆叠（Flex-direction: column），并优化按键触控区域大小。
-- **悬浮电影字幕**: 在左侧 `.visual-panel` 底部新增绝对定位的半透明字幕层 (`#subtitleOverlay`)。当收到后端的实时流式转录时，以电影字幕风格展示，数秒后自动淡出。
-- **音色选择器**: 在“设置”弹窗中新增下拉菜单，支持选择 OpenAI 官方音色（Alloy, Echo, Fable, Onyx, Nova, Shimmer），并将配置与 Prompt 一起存入 LocalStorage。
+### 2.2 实现“按住说话” (Push to Talk)
+**目标文件**：`src/static/index.html`
+**修改内容**：
+- 在底部输入栏左侧添加一个“语音/键盘”切换 SVG 按钮。
+- 切换到语音模式时，隐藏文本输入框 (`.input-box`)，显示一个宽大的“按住 说话”按钮。
+- **交互逻辑**：
+  - `mousedown` / `touchstart`：调用 `ensureConnection(audio=True, video=False)` 建立/唤醒连接，并执行 `callObject.setLocalAudio(True)` 开启麦克风。显示录音中的 UI 动画提示。
+  - `mouseup` / `touchend`：执行 `callObject.setLocalAudio(False)` 关闭麦克风，完成语音发送。
+- **防误触处理**：为 PTT 按钮添加 CSS `user-select: none; -webkit-touch-callout: none;` 防止移动端长按弹出菜单。
 
-### 3.2 接入层参数扩充 (`src/api/server.py`)
-- 在 `/connect` 接口的 JSON 解析中，提取 `voice` 参数。
-- 将 `voice` 参数与 `prompt` 一同通过命令行参数（Base64 编码以防转义）传递给 `realtime_agent.py` 子进程。
+### 2.3 完善双向呼叫体验 (接听与拨打)
+**目标文件**：`src/static/index.html`
+**修改内容**：
+- **主动呼叫 (拨打)**：
+  - 点击“语音/视频通话”时，进入 Call Overlay，状态显示“正在呼叫 OmniFlow...”。
+  - 待 Daily `joined-meeting` 且对方（Agent）音频轨道接入后，状态转为“通话中”。
+- **模拟来电 (接听)**：
+  - 在 Action Panel（➕ 号面板）中新增一个“模拟 AI 来电”测试按钮。
+  - 点击后，延迟 2 秒弹出全屏的**来电响铃界面 (Incoming Call UI)**。
+  - **来电界面设计**：居中显示 AI 头像和名字，底部提供红色的“拒绝”和绿色的“接听”按钮，附带原生级别的呼吸动效。
+  - 点击“接听” -> 执行原有的 `startCall` 逻辑进入通话。
+  - 点击“拒绝” -> 关闭来电界面。
 
-### 3.3 核心管道修复与字幕透传 (`src/agents/realtime_agent.py`)
-- **修复 Import 路径**: 引入正确的 `pipecat` OpenAI Realtime 依赖库。
-- **动态音色设置**: 接收并解析传入的 `voice` 参数，在初始化 `OpenAIRealtimeLLMService` 或配置 Context 时注入。
-- **实时字幕广播拦截器**: 新增一个自定义的 `SubtitleProcessor` (继承自 `FrameProcessor`)，专门拦截管道中的 `TranscriptionFrame`（包含用户与 Agent 的实时语音转录），并通过 `transport.send_app_message` 发送至前端，驱动电影字幕更新。
+### 2.4 UI/UX 全面打磨
+**目标文件**：`src/static/index.html`
+**修改内容**：
+- 增加 `padding-bottom: env(safe-area-inset-bottom);` 以适配 iPhone 底部小黑条。
+- 优化 Action Panel 的网格布局和按钮点击态（Ripple / Scale 效果）。
+- 确保所有的交互（特别是录音和通话控制）提供明确的视觉反馈（如颜色变化、图标切换）。
 
-### 3.4 工具链与留存修复 (`src/rag/local_rag.py`, `src/core/log_processor.py`)
-- **修复 RAG**: 修正 `local_rag.py` 中的 `search_knowledge` 函数，返回规范的 JSON/字符串结果 `return {"result": kb_content}`，维持零成本零依赖架构。
-- **修复 Logger**: 修正 `log_processor.py` 中错乱的类定义，确保文件读写流式记录功能正常运作。
+## 3. 假设与决策
+- **语音消息实现策略**：不采用传统的前端录音生成 mp3/wav 再上传的方案，而是直接复用现有的 WebRTC 连接。长按时解除静音，松开时静音，依靠后端的 VAD（静音检测）和 OpenAI Realtime API 直接处理音频流。这符合本项目的“隐式无感连接”架构。
+- **图标选择**：直接在 HTML 中内联 SVG 代码，避免增加外部字体库或图片请求，保持项目零依赖、加载快的特点。
 
-## 4. 假设与前置决策
-- **字幕展示策略**: 用户明确选择了“悬浮电影字幕风”，因此实时转录文本只更新在视频/能量球下方，右侧聊天框仅保留最终完整的文本消息（或由用户主动发送的文本）。
-- **RAG 策略**: 用户明确选择了“极简本地读取”，无需引入复杂的向量数据库，完全依赖 OpenAI 的 Function Calling 将 Markdown 文本带入上下文。
-
-## 5. 验证步骤
-1. 在桌面端与手机端同时访问 `http://localhost:3003`，验证响应式布局是否优雅。
-2. 打开设置弹窗，切换音色为 `nova`（女声），发起通话，验证音色是否生效。
-3. 在语音通话时，观察视频区下方是否有实时滚动的“电影字幕”。
-4. 询问公司地址或退款政策，验证大模型是否成功调用 `search_knowledge` 并基于 `knowledge.md` 给出正确答复。
+## 4. 验证步骤
+1. 打开 `http://localhost:3003`，检查界面所有 Emoji 是否成功替换为 SVG，并且随主题切换颜色。
+2. 切换到“按住说话”模式，长按按钮说话，检查是否能听到 AI 的语音回复并在界面上看到字幕/转录。
+3. 打开 ⊕ 面板，点击“模拟 AI 来电”，验证 2 秒后是否弹出来电界面，点击接听是否能正常进入通话。
+4. 使用 Playwright 自动化脚本验证关键 UI 元素的可见性和点击交互（或手动在浏览器中模拟移动端视口测试）。
