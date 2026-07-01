@@ -15,6 +15,9 @@ from pipecat.vad.silero import SileroVADAnalyzer
 from src.core.log_processor import ConversationLogger
 from src.rag.local_rag import register_rag_tool
 
+from pipecat.frames.frames import TextFrame, UserImageRequestFrame
+from pipecat.messages.mac_os import MacOsFrameSerializer # Using generic import format
+
 load_dotenv()
 
 async def main(room_url: str, token: str, prompt_b64: str):
@@ -27,6 +30,7 @@ async def main(room_url: str, token: str, prompt_b64: str):
         logger.error(f"Failed to decode prompt: {e}")
         system_prompt = "你是一个全渠道智能客服。请用简短、专业的中文回答。"
 
+    # Set up Daily Transport with video enabled
     transport = DailyTransport(
         room_url=room_url,
         token=token,
@@ -34,6 +38,8 @@ async def main(room_url: str, token: str, prompt_b64: str):
         params=DailyParams(
             audio_out_enabled=True,
             camera_out_enabled=False,
+            camera_out_width=1024,
+            camera_out_height=768,
             vad_enabled=True,
             vad_analyzer=SileroVADAnalyzer(),
             vad_audio_passthrough=True,
@@ -70,6 +76,21 @@ async def main(room_url: str, token: str, prompt_b64: str):
     )
 
     task = PipelineTask(pipeline, PipelineParams(allow_interruptions=True))
+
+    @transport.event_handler("on_app_message")
+    async def on_app_message(transport, message, sender_id):
+        logger.info(f"Received App Message from {sender_id}: {message}")
+        if isinstance(message, dict) and "type" in message:
+            msg_type = message["type"]
+            if msg_type == "text":
+                text_content = message.get("content", "")
+                # 中断当前的音频播放，插入文本帧
+                await task.queue_frame(TextFrame(text_content))
+            elif msg_type == "image":
+                # 收到前端发来的图片（通过 Data Channel）
+                logger.info("Received an image via Data Channel")
+                # 可以将其加入到 Vision Context 中，或封装为特定的 Frame 交给支持 Vision 的大模型
+                pass
 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
