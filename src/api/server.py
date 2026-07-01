@@ -2,6 +2,9 @@ import os
 import time
 import subprocess
 import aiohttp
+import glob
+import json
+import base64
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -21,11 +24,58 @@ async def index():
     with open("src/static/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
+# --- 历史记录接口 ---
+@app.get("/api/history")
+async def get_history():
+    """获取所有历史通话的会话列表"""
+    os.makedirs("logs", exist_ok=True)
+    files = glob.glob("logs/session_*.jsonl")
+    sessions = []
+    for f in files:
+        session_id = os.path.basename(f).replace("session_", "").replace(".jsonl", "")
+        # 获取文件最后修改时间
+        mtime = os.path.getmtime(f)
+        sessions.append({
+            "session_id": session_id,
+            "timestamp": mtime,
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
+        })
+    # 按时间倒序
+    sessions.sort(key=lambda x: x["timestamp"], reverse=True)
+    return JSONResponse(sessions)
+
+@app.get("/api/history/{session_id}")
+async def get_history_detail(session_id: str):
+    """获取单次会话的详细文本记录"""
+    file_path = f"logs/session_{session_id}.jsonl"
+    if not os.path.exists(file_path):
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+    
+    logs = []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    logs.append(json.loads(line))
+        return JSONResponse({"session_id": session_id, "logs": logs})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 # --- WebRTC 接入层 ---
 @app.post("/connect")
-async def connect():
+async def connect(request: Request):
     if not DAILY_API_KEY or DAILY_API_KEY == "your_daily_api_key_here":
         return JSONResponse({"error": "DAILY_API_KEY 未配置"}, status_code=500)
+    
+    # 接收前端传来的动态设置
+    try:
+        body = await request.json()
+    except:
+        body = {}
+        
+    system_prompt = body.get("prompt", "你是一个全渠道智能客服。你可以调用 search_knowledge 工具查询公司信息。请用简短、专业的中文回答。")
+    # 为了避免通过命令行传参时引发特殊字符截断，这里使用 Base64 编码
+    prompt_b64 = base64.b64encode(system_prompt.encode('utf-8')).decode('utf-8')
     
     async with aiohttp.ClientSession() as session:
         headers = {"Authorization": f"Bearer {DAILY_API_KEY}"}
@@ -37,9 +87,9 @@ async def connect():
             token_data = await r.json()
             token = token_data.get("token")
     
-    # 异步拉起 Pipecat Agent 子进程
+    # 异步拉起 Pipecat Agent 子进程，并传入 Base64 编码的 Prompt
     logger.info(f"Spawning Agent for room: {room_url}")
-    subprocess.Popen([".venv/bin/python", "src/agents/realtime_agent.py", room_url, token])
+    subprocess.Popen([".venv/bin/python", "src/agents/realtime_agent.py", room_url, token, prompt_b64])
     
     return JSONResponse({"room_url": room_url, "token": token})
 

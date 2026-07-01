@@ -6,17 +6,55 @@
     <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
     <link rel="icon" href="/static/favicon.ico">
     <style>
-        body { font-family: -apple-system, sans-serif; background: #111; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; position: relative; }
-        .logo-container { position: absolute; top: 30px; display: flex; align-items: center; gap: 10px; }
+        body { font-family: -apple-system, sans-serif; background: #111; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; position: relative; overflow: hidden; }
+        .logo-container { position: absolute; top: 30px; left: 30px; display: flex; align-items: center; gap: 10px; }
         .logo { width: 40px; height: 40px; border-radius: 8px; box-shadow: 0 0 15px rgba(74, 144, 226, 0.5); }
         .logo-text { font-size: 24px; font-weight: bold; background: linear-gradient(90deg, #4a90e2, #b06ab3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        button { padding: 15px 30px; font-size: 18px; border-radius: 8px; background: #0070f3; color: white; border: none; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0051a2; }
-        button:disabled { background: #333; cursor: not-allowed; }
+        
+        .top-nav { position: absolute; top: 30px; right: 30px; display: flex; gap: 15px; }
+        .icon-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; font-size: 20px; backdrop-filter: blur(10px); }
+        .icon-btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.05); }
+
+        button.primary-btn { padding: 15px 30px; font-size: 18px; border-radius: 8px; background: #0070f3; color: white; border: none; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 14px 0 rgba(0,118,255,0.39); }
+        button.primary-btn:hover { background: #0051a2; box-shadow: 0 6px 20px rgba(0,118,255,0.23); }
+        button.primary-btn:disabled { background: #333; cursor: not-allowed; box-shadow: none; }
+        
         #status { margin-top: 20px; font-size: 14px; color: #888; }
         .orb { width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #4a90e2, #000); box-shadow: 0 0 20px #4a90e2; margin-bottom: 40px; animation: pulse 2s infinite alternate; display: none; }
         @keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 10px #4a90e2; } 100% { transform: scale(1.05); box-shadow: 0 0 30px #4a90e2; } }
+        
         .footer { position: absolute; bottom: 20px; font-size: 12px; color: #555; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+        .modal { background: rgba(30, 30, 30, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; width: 400px; max-width: 90vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.5); backdrop-filter: blur(20px); transform: translateY(20px); transition: transform 0.3s; }
+        .modal.show { transform: translateY(0); }
+        .modal h2 { margin-top: 0; margin-bottom: 20px; font-size: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: none; border: none; color: #888; font-size: 24px; cursor: pointer; }
+        .modal-close:hover { color: white; }
+        
+        /* Settings Modal Specific */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #bbb; }
+        .form-group textarea { width: 100%; box-sizing: border-box; height: 120px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; padding: 12px; font-family: inherit; resize: vertical; }
+        .form-group textarea:focus { outline: none; border-color: #4a90e2; }
+        .save-btn { width: 100%; padding: 12px; background: #4a90e2; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .save-btn:hover { background: #357abd; }
+
+        /* History Modal Specific */
+        #historyModal { width: 600px; }
+        .session-item { padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); margin-bottom: 10px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .session-item:hover { background: rgba(255,255,255,0.1); }
+        .session-time { font-size: 14px; color: #ddd; }
+        .session-id { font-size: 12px; color: #888; }
+        
+        .chat-view { display: none; }
+        .back-btn { background: none; border: none; color: #4a90e2; cursor: pointer; padding: 0; font-size: 14px; margin-bottom: 15px; }
+        .back-btn:hover { text-decoration: underline; }
+        .chat-container { display: flex; flex-direction: column; gap: 10px; }
+        .chat-bubble { padding: 10px 14px; border-radius: 12px; max-width: 80%; font-size: 14px; line-height: 1.4; }
+        .chat-user { background: #4a90e2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .chat-agent { background: rgba(255,255,255,0.1); color: #ddd; align-self: flex-start; border-bottom-left-radius: 4px; }
     </style>
 </head>
 <body>
@@ -24,12 +62,48 @@
         <img src="/static/logo.png" alt="OmniFlow Logo" class="logo">
         <div class="logo-text">OmniFlow</div>
     </div>
+    
+    <div class="top-nav">
+        <div class="icon-btn" id="historyBtn" title="通话记录">📜</div>
+        <div class="icon-btn" id="settingsBtn" title="系统设置">⚙️</div>
+    </div>
+
     <div class="orb" id="orb"></div>
-    <button id="startBtn">开始语音通话 (WebRTC)</button>
+    <button id="startBtn" class="primary-btn">开始语音通话 (WebRTC)</button>
     <div id="status">点击按钮连接 AI Agent...</div>
 
     <div class="footer">
         <span>&copy; 2026 omniflow.ai &bull; V0.1.0</span>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsOverlay">
+        <div class="modal" id="settingsModal">
+            <button class="modal-close" onclick="closeModal('settings')">&times;</button>
+            <h2>Agent 核心设置</h2>
+            <div class="form-group">
+                <label>System Prompt (系统提示词)</label>
+                <textarea id="promptInput">你是一个全渠道智能客服。你可以调用 search_knowledge 工具查询公司信息。请用简短、专业的中文回答。</textarea>
+            </div>
+            <button class="save-btn" onclick="saveSettings()">保存配置</button>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="historyOverlay">
+        <div class="modal" id="historyModal">
+            <button class="modal-close" onclick="closeModal('history')">&times;</button>
+            <h2>历史通话记录</h2>
+            
+            <div id="sessionListView">
+                <div id="sessionList">加载中...</div>
+            </div>
+
+            <div id="chatDetailView" class="chat-view">
+                <button class="back-btn" onclick="showSessionList()">← 返回列表</button>
+                <div class="chat-container" id="chatContainer"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -37,17 +111,34 @@
         const startBtn = document.getElementById('startBtn');
         const status = document.getElementById('status');
         const orb = document.getElementById('orb');
+        const promptInput = document.getElementById('promptInput');
 
+        // Load settings from localStorage
+        window.onload = () => {
+            const savedPrompt = localStorage.getItem('omniflow_prompt');
+            if (savedPrompt) {
+                promptInput.value = savedPrompt;
+            }
+        };
+
+        // --- Call Logic ---
         startBtn.onclick = async () => {
             startBtn.disabled = true;
             status.innerText = "正在分配 Agent 节点...";
             
+            const currentPrompt = promptInput.value.trim();
+
             try {
-                const res = await fetch('/connect', { method: 'POST' });
+                const res = await fetch('/connect', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: currentPrompt })
+                });
                 const data = await res.json();
                 
                 if(data.error) {
                     status.innerText = "错误: " + data.error;
+                    startBtn.disabled = false;
                     return;
                 }
 
@@ -62,6 +153,7 @@
                 
                 callObject.on('error', (e) => {
                     status.innerText = "连接失败: " + e.errorMsg;
+                    startBtn.disabled = false;
                 });
 
                 await callObject.join({ url: data.room_url, token: data.token });
@@ -69,8 +161,103 @@
                 callObject.setLocalAudio(true);
             } catch (e) {
                 status.innerText = "系统异常: " + e.message;
+                startBtn.disabled = false;
             }
         };
+
+        // --- Modals Logic ---
+        function openModal(type) {
+            const overlay = document.getElementById(type + 'Overlay');
+            const modal = document.getElementById(type + 'Modal');
+            overlay.style.display = 'flex';
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                modal.classList.add('show');
+            }, 10);
+
+            if (type === 'history') {
+                loadHistoryList();
+            }
+        }
+
+        function closeModal(type) {
+            const overlay = document.getElementById(type + 'Overlay');
+            const modal = document.getElementById(type + 'Modal');
+            overlay.style.opacity = '0';
+            modal.classList.remove('show');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 300);
+        }
+
+        document.getElementById('settingsBtn').onclick = () => openModal('settings');
+        document.getElementById('historyBtn').onclick = () => openModal('history');
+
+        function saveSettings() {
+            localStorage.setItem('omniflow_prompt', promptInput.value);
+            closeModal('settings');
+            status.innerText = "配置已保存，下次通话生效";
+            setTimeout(() => status.innerText = "点击按钮连接 AI Agent...", 2000);
+        }
+
+        // --- History Logic ---
+        async function loadHistoryList() {
+            showSessionList();
+            const listEl = document.getElementById('sessionList');
+            listEl.innerHTML = "加载中...";
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                if (data.length === 0) {
+                    listEl.innerHTML = "<div style='color:#888;text-align:center;padding:20px;'>暂无通话记录</div>";
+                    return;
+                }
+                
+                listEl.innerHTML = data.map(session => `
+                    <div class="session-item" onclick="loadSessionDetail('${session.session_id}')">
+                        <span class="session-time">${session.time_str}</span>
+                        <span class="session-id">ID: ${session.session_id.substring(0, 8)}...</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                listEl.innerHTML = "加载失败";
+            }
+        }
+
+        async function loadSessionDetail(sessionId) {
+            document.getElementById('sessionListView').style.display = 'none';
+            document.getElementById('chatDetailView').style.display = 'block';
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.innerHTML = "加载中...";
+            
+            try {
+                const res = await fetch(`/api/history/${sessionId}`);
+                const data = await res.json();
+                
+                if (data.error || !data.logs || data.logs.length === 0) {
+                    chatContainer.innerHTML = "<div style='color:#888;text-align:center;'>记录为空</div>";
+                    return;
+                }
+
+                chatContainer.innerHTML = data.logs.map(log => {
+                    const isUser = log.role.toLowerCase() === 'user';
+                    const className = isUser ? 'chat-user' : 'chat-agent';
+                    return `<div class="chat-bubble ${className}">${log.text}</div>`;
+                }).join('');
+                
+                // Scroll to bottom
+                const modal = document.getElementById('historyModal');
+                modal.scrollTop = modal.scrollHeight;
+                
+            } catch (e) {
+                chatContainer.innerHTML = "加载失败";
+            }
+        }
+
+        function showSessionList() {
+            document.getElementById('sessionListView').style.display = 'block';
+            document.getElementById('chatDetailView').style.display = 'none';
+        }
     </script>
 </body>
 </html>

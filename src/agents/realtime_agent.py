@@ -17,8 +17,15 @@ from src.rag.local_rag import register_rag_tool
 
 load_dotenv()
 
-async def main(room_url: str, token: str):
+async def main(room_url: str, token: str, prompt_b64: str):
     logger.info("Initializing WebRTC OmniFlow Agent...")
+    
+    import base64
+    try:
+        system_prompt = base64.b64decode(prompt_b64).decode('utf-8')
+    except Exception as e:
+        logger.error(f"Failed to decode prompt: {e}")
+        system_prompt = "你是一个全渠道智能客服。请用简短、专业的中文回答。"
 
     transport = DailyTransport(
         room_url=room_url,
@@ -43,7 +50,7 @@ async def main(room_url: str, token: str):
     register_rag_tool(llm)
 
     context = OpenAILLMContext(
-        [{"role": "system", "content": "你是一个全渠道智能客服。你可以调用 search_knowledge 工具查询公司信息。请用简短、专业的中文回答。"}]
+        [{"role": "system", "content": system_prompt}]
     )
     context_aggregator = llm.create_context_aggregator(context)
 
@@ -75,7 +82,14 @@ async def main(room_url: str, token: str):
     await runner.run(task)
 
 if __name__ == "__main__":
+    import base64
     if len(sys.argv) < 3:
-        logger.error("Usage: python realtime_agent.py <room_url> <token>")
+        logger.error("Usage: python realtime_agent.py <room_url> <token> [prompt_b64]")
         sys.exit(1)
-    asyncio.run(main(sys.argv[1], sys.argv[2]))
+    
+    room_url = sys.argv[1]
+    token = sys.argv[2]
+    # 如果没有传入 prompt，给一个默认的 base64
+    prompt_b64 = sys.argv[3] if len(sys.argv) > 3 else base64.b64encode("你是一个全渠道智能客服。请用简短、专业的中文回答。".encode('utf-8')).decode('utf-8')
+    
+    asyncio.run(main(room_url, token, prompt_b64))
